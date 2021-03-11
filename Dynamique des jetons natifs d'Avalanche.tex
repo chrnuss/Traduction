@@ -1,0 +1,378 @@
+%% LyX 2.3.5.2 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[french]{article}
+\usepackage[LGR,T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=3cm,bmargin=3cm,lmargin=3cm,rmargin=3cm}
+\setlength{\parskip}{\smallskipamount}
+\setlength{\parindent}{0pt}
+\usepackage{calc}
+\usepackage{amstext}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{setspace}
+\PassOptionsToPackage{normalem}{ulem}
+\usepackage{ulem}
+\onehalfspacing
+
+\makeatletter
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LyX specific LaTeX commands.
+\DeclareRobustCommand{\greektext}{%
+  \fontencoding{LGR}\selectfont\def\encodingdefault{LGR}}
+\DeclareRobustCommand{\textgreek}[1]{\leavevmode{\greektext #1}}
+\ProvideTextCommand{\~}{LGR}[1]{\char126#1}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+\usepackage[modulo]{lineno}
+\usepackage{float}
+\linenumbers
+
+\makeatother
+
+\usepackage{babel}
+\makeatletter
+\addto\extrasfrench{%
+   \providecommand{\og}{\leavevmode\flqq~}%
+   \providecommand{\fg}{\ifdim\lastskip>\z@\unskip\fi~\frqq}%
+}
+
+\makeatother
+\begin{document}
+\title{\textbf{Dynamique des jetons natifs d\textquoteright }\texttt{Avalanche}\textbf{(}\texttt{\textbf{\$AVAX}}\textbf{)}}
+\date{25/06/2020}
+\author{Stephen Buttolph, Amani Moin, Kevin Sekniqi, et Emin Gün Sirer\textit{}\\
+\textit{Traduit par Christophe Nussbaumer}}
+\maketitle
+\begin{abstract}
+{\normalsize{}Cet article traite des détails clés d'implémentation du
+jeton natif d\textquoteright }\texttt{\normalsize{}Avalanche}{\normalsize{}
+(appelé }\texttt{\normalsize{}\$AVAX}{\normalsize{}), et notamment
+de son économie }\textit{\normalsize{}(tokenomics)}{\normalsize{}.
+Le jeton natif sert à sécuriser le réseau et à payer les frais de
+transaction, et il fournit l'unité de compte de base entre les multiples
+blockchains déployées sur le réseau plus large d\textquoteright }\texttt{\normalsize{}Avalanche}{\normalsize{}.
+Pour plus de détails sur }\texttt{\normalsize{}Avalanche}{\normalsize{},
+plateforme polyvalente et universelle permettant à quiconque de lancer
+de nouvelles blockchains avec leurs propres règles, machines virtuelles
+et ensembles de validateurs, nous invitons le lecteur à lire le document
+d'architecture d'accompagnement {[}1{]} ou la documentation }\texttt{\normalsize{}Avalanche}{\normalsize{}
+{[}2{]}.}\\
+
+{\normalsize{}Commit Git: 30d3aeb5863f5fcb033f9a34bcad5f21a79a4b7d}\\
+\end{abstract}
+\begin{quote}
+{\small{}\uline{Déclaration}}{\small{}: les informations décrites
+dans ce document sont préliminaires et sujettes à modification à tout
+moment. De plus, ce document peut contenir des déclarations prospectives.
+Celles-ci se rapportent généralement à des événements futurs ou à
+nos performances futures. Cela comprend, mais sans s'y limiter, les
+performances projetées d'}\texttt{\small{}Avalanche}{\small{}; le
+développement attendu de ses affaires et projets; l'exécution de sa
+vision et de sa stratégie de croissance; ainsi que l'achèvement de
+projets actuellement en cours, en phase de développement ou à l'étude.
+Les déclarations prospectives représentent les convictions et hypothèses
+de notre direction uniquement à la date de cette présentation. Ces
+déclarations ne sont pas des garanties de performances futures et
+il ne faut pas s'y fier indûment. Ces déclarations prospectives impliquent
+nécessairement des risques connus et inconnus qui peuvent faire en
+sorte que le rendement réel et les résultats dans les périodes futures
+diffèrent sensiblement de toute projection explicite ou implicite
+dans ce texte. }\texttt{\small{}Avalanche}{\small{} n'assume aucune
+obligation de mettre à jour les déclarations prospectives. Bien que
+les déclarations prospectives constituent notre meilleure prédiction
+au moment où elles sont formulées, rien ne garantit qu'elles se révéleront
+exactes, dans le sens où les résultats réels et les événements futurs
+pourraient différer considérablement. Le lecteur est prié de ne pas
+se fier indûment aux déclarations prospectives.}{\small\par}
+\end{quote}
+
+\section{Introduction}
+
+Le modèle économique d'une nouvelle monnaie ou d'un nouvel actif numérique
+est l'une des composantes les plus critiques de la plateforme sur
+laquelle ils résident. Cela est particulièrement vrai pour le jeton
+natif d'une plateforme auto-souveraine et sans permission comme \texttt{Avalanche}.
+Dans cet article, nous discutons de la conception du jeton natif appelé
+\texttt{\$AVAX}. La discussion est décomposée comme suit : propriétés
+de gouvernance du jeton, sa quantité totale \textit{(supply)}, la
+fonction de récompense (ou émission de nouveaux jetons) des personnes
+qui mettent en jeu leurs jetons \textit{(stakers)}, ainsi que d'autres
+détails économiques pertinents tels que l'économie transactionnelle.
+
+\subsection{Les propriétés clés de l'\texttt{\$AVAX}}
+
+Voici les principales propriétés clés à retenir de la conception du
+modèle économique de l\textquoteright \texttt{\$AVAX}: \\
+
+\begin{itemize}
+\item les ressources dépensées par un validateur pour la mise en jeu \textit{(staking)}
+sont proportionnelles à la mise en jeu totale de ce validateur;
+\item les récompenses accumulées par un validateur pour la validation sont
+proportionnelles à la mise totale de ce validateur;
+\item comme \texttt{Avalanche} n\textquoteright a pas de leader, il n'y
+a pas d'effets cumulatifs du genre « les riches deviennent plus riches »;
+\item les validateurs qui verrouillent leur mise plus longtemps sont davantage
+récompensés. Les validateurs sont incités à rester en ligne et à fonctionner
+correctement car leurs récompenses sont basées sur la preuve de disponibilité
+\textit{(proof-of-uptime)} et la preuve d\textquoteright exactitude
+\textit{(proof-of-correctness);}
+\item \texttt{\$AVAX} est un jeton dont la quantité totale est plafonnée
+à 720 millions de jetons;
+\item bien que plafonné, l\textquoteright \texttt{\$AVAX} est toujours gouvernable.
+Le taux d\textquoteright émission pour atteindre la quantité maximale
+dépend de la gouvernance. Les frais ne sont payés à aucun validateur
+spécifique. Au lieu de cela ils sont brûlés \textit{(burned)}, augmentant
+ainsi la rareté de l\textquoteright \texttt{\$AVAX}.
+\end{itemize}
+
+\section{Gouvernance}
+
+Nous débutons notre enquête sur la conception économique d'\texttt{Avalanche}
+en discutant d'abord de la gouvernance, celle-ci jouant un rôle essentiel
+à l\textquoteright intérieur de futures composantes. Pour permettre
+au système de s'adapter aux conditions économiques changeantes, la
+plateforme \texttt{Avalanche} permet de modifier dynamiquement les
+paramètres clés du système en fonction des entrées \textit{(inputs)}
+de l'utilisateur. Pour les systèmes décentralisés sans dépositaire,
+un processus viable est essentiel pour trouver des valeurs globalement
+acceptables concernant les paramètres système. \texttt{Avalanche}
+peut utiliser son mécanisme de consensus pour construire un système
+qui permet à quiconque de proposer des transactions spéciales qui
+sont, par essence, des sondages à l'échelle du système. Tout n½ud
+participant peut émettre de telles propositions.\\
+
+Le taux de récompense est un paramètre important qui affecte toute
+devise, qu'elle soit numérique ou fiat. Malheureusement, les crypto-monnaies
+qui corrigent ce paramètre peuvent rencontrer divers problèmes, dont
+la déflation ou l\textquoteright hyperinflation. À cette fin, le taux
+de récompense sera soumis à la gouvernance dans des limites préétablies.
+Cela permettra aux détenteurs de jetons de choisir le taux auquel
+l\textquoteright \texttt{\$AVAX} atteint le plafond de sa quantité
+totale.\\
+
+Les frais de transaction, désignés par l'ensemble $\mathcal{F}$,
+seront aussi éventuellement soumis à la gouvernance. $\mathcal{F}$
+est en fait un n-uplet qui décrit les frais associés aux différentes
+instructions et transactions prises en charge dans les versions futures.
+Enfin, le temps et les montants de staking seront également soumis
+à la gouvernance. La liste de ces paramètres est définie en figure
+1.\\
+
+\begin{figure}[H]
+\fbox{\begin{minipage}[t]{1\columnwidth - 2\fboxsep - 2\fboxrule}%
+\begin{itemize}
+\item $\Delta$: montant du staking, libellé en \texttt{\$AVAX}. Cette valeur
+définit la mise minimale requise pour être placée en tant que caution
+avant de participer au système. La valeur d\textquoteright origine
+par défaut sera de 2000 \texttt{\$AVAX}.
+\item $\delta_{\mathrm{min}}$: durée minimale de staking d\textquoteright un
+n½ud pour participer au système. La valeur d\textquoteright origine
+par défaut sera de 2 semaines. 
+\item $\delta_{\mathrm{max}}$: durée maximale de staking d\textquoteright un
+noeud. La valeur d\textquoteright origine par défaut sera de 52 semaines.
+\item $\gamma,\lambda$: les deux paramètres clés pour contrôler la fonction
+du taux d\textquoteright émission des jetons. 
+\item $\mathcal{F}$: la structure des frais, qui est un ensemble de paramètres
+de frais soumis à gouvernance définissant les coûts des diverses transactions.
+\end{itemize}
+\caption{Paramètres de gouvernance clés utilisés dans \texttt{Avalanche}}
+%
+\end{minipage}}
+
+\end{figure}
+
+En fin de compte, nous notons que la gouvernance dans l\textquoteright \texttt{\$AVAX}
+a de l'hystérésis, ce qui signifie que les changements de paramètres
+dépendent fortement de leurs changements récents. Il existe deux limites
+associées à chaque paramètre soumis à gouvernance: le temps et la
+portée. Une fois qu'un paramètre est modifié à l'aide d'une transaction
+de gouvernance, il devient très difficile de la modifier immédiatement
+à nouveau et de manière importante. Ces contraintes de difficulté
+et de valeur s\textquoteright assouplissent à mesure que le temps
+s'écoule depuis la dernière modification. Ces restrictions sont conformes
+à la philosophie de la conception de la prévisibilité: le système
+ne doit jamais changer radicalement sur une courte période de temps,
+permettant ainsi aux utilisateurs de prévoir en toute sécurité les
+paramètres du système à court terme, tout en conservant un contrôle
+et une flexibilité solides sur le long terme.
+
+\section{L\textquoteright économie du jeton}
+
+La quantité plafonnée d\textquoteright \texttt{\$AVAX} est de 720
+000 000 (720 millions) de jetons. Le premier bloc \textit{(genesis
+block)} aura 360 millions de jetons \texttt{\$AVAX}. Le reste des
+360 millions de jetons sera émis selon l'équation\textasciitilde 1.
+La représentation graphique en figure 2 montre la courbe des émissions
+de jetons entre \texttt{\$AVAX} et BTC. Le principe de la fonction
+d'émission choisie pour \texttt{Avalanche} est simple: atteindre une
+quantité plafonnée de manière similaire à la courbe d'émission du
+Bitcoin, tout en conservant la capacité de contrôler le taux auquel
+le système atteint cette limite.
+
+\subsection{Fonction d\textquoteright émission}
+
+$R_{j}$ est le nombre total de jetons à l'année $j$, avec $R_{1}=360\text{ millions}$,
+et $R_{l}$ représentant la dernière année où les valeurs $\gamma,\lambda\in\mathbb{R}$
+ont été modifiées ; $c_{j}$ est l'offre encore non émise de pièces
+pour atteindre $720\text{ millions}$ à l'année $j$ de sorte que
+$c_{j}\leq360\text{ millions}$; \textit{u} représente un staker,
+avec le montant $u.s_{\mathrm{montant}}$ représentant le montant
+total de la mise que $u$ possède, et $u.s_{\mathrm{temps}}$ la durée
+du staking pour $u$.
+
+\begin{equation}
+R_{j}=R_{i}+\sum_{\forall u}\rho\left(u.s_{\mathrm{montant}},u.s_{\mathrm{temps}}\right)\times\left(c_{j}/L\right)\times\left(\sum_{i=0}^{j}\frac{1}{\left(\gamma+\frac{1}{1+i^{\lambda}}\right)^{i}}\right),\label{eq:formule-i}
+\end{equation}
+où
+\begin{equation}
+L=\left(\sum_{i=0}^{\infty}\frac{1}{\left(\gamma+\frac{1}{1+i^{\lambda}}\right)^{i}}\right).\label{eq:formule-ii}
+\end{equation}
+A l'origine, $c_{1}=360\text{ millions}$. Les valeurs de $\gamma$
+et $\lambda$ sont soumises à la gouvernance, et si elles sont changées,
+la fonction est recalculée avec la nouvelle valeur de $c_{*}$. Il
+se trouve que $\sum_{*}\rho\left(*\right)\leq1$. $\rho\left(*\right)$
+est une fonction linéaire qui peut être calculée comme suit ($u.s_{\mathrm{temps}}$
+est mesuré en semaines et $u.s_{\mathrm{montant}}$ est mesuré en
+jetons \texttt{\$AVAX}):
+\begin{equation}
+\rho\left(u.s_{\mathrm{montant}},u\cdot s_{\mathrm{temps}}\right)=\left(0.002\times u.s_{\mathrm{temps}}+0.896\right)\times\frac{u.s_{\mathrm{montant}}}{R_{j}}.\label{eq:formule-iii}
+\end{equation}
+Si la totalité des jetons à l'année $j$ est mise en jeu pour la durée
+maximale de temps de staking (une année, ou 52 semaines), alors $\sum_{\forall u}\rho\left(u.s_{\mathrm{montant}},u.s_{\mathrm{temps}}\right)=1$.
+Si, au contraire, tous les jetons sont mis en jeu continuellement
+pour la durée minimale de staking fixée à deux semaines, alors $\sum_{\forall u}\rho\left(u.s_{\mathrm{montant}},u.s_{\mathrm{temps}}\right)=0.9$.
+Dès lors, la mise en jeu pour la durée maximale engendre 11.11\% supplémentaire
+de jetons émis. Comme la quantité totale est plafonnée, la fonction
+ci-dessus garantit que nous ne dépasserons jamais un total de 720
+millions de jetons, quel que soit le nombre de changements de gouvernance.
+\begin{equation}
+\lim_{j\to\infty}R_{j}=720\text{ millions}.\label{eq:formule-iv}
+\end{equation}
+ 
+\begin{figure}
+\includegraphics{\string"token-fig mod\string".pdf}
+
+\caption{Emissions de jetons entre \texttt{\$AVAX} et BTC, calculées sur un
+horizon de 20 et 100 ans, avec $\gamma=1.15$ et $\lambda=1.1$. La
+courbe pour \og\texttt{\$AVAX} (100\% staked)\fg{} représente le cas
+où chaque jeton est mis en jeu de façon répétée pour la durée de staking
+maximale d'un an, c'est-à-dire $\sum_{\forall u}\rho\left(u.s_{\mathrm{montant}},u.s_{\mathrm{temps}}\right)=1.$
+D'autre part, la courbe pour \og\texttt{\$AVAX} (50\% staked)\fg{}
+représente le cas où seulement 50\% des jetons sont mis en jeu de
+façon répétée sur la durée de staking minimale de deux semaines, c'est-à-dire
+$\sum_{\forall u}\rho\left(u.s_{\mathrm{montant}},u.s_{\mathrm{temps}}\right)=0.45$.
+Nous notons que, par souci de simplicité, ces graphiques représentent
+le cas où \textgreek{g} et \textgreek{l} sont fixés à l'origine et
+ne sont jamais soumis à la gouvernance par la suite. En changeant
+\textgreek{g} et \textgreek{l}, le but est d'augmenter la quantité
+totale des jetons dans le cas où la quantité totale mise en jeu et
+observée empiriquement est trop basse.}
+\end{figure}
+
+
+\section{Mécanisme d\textquoteright émission du jeton}
+
+L\textquoteright émission de jetons dans \texttt{\$AVAX} est conçue
+pour inciter les n½uds à se comporter d'une manière qui contribue
+positivement aux résultats globaux. Ceci est accompli par des transactions
+spéciales d\textquoteright émission. Un n½ud gagne le droit d\textquoteright émission
+en hébergeant d\textquoteright abord une mise, puis en participant
+activement au processus du consensus. Plus précisément, les récompenses
+des n½uds sont directement liées à leur disponibilité et leur temps
+de réponse. Chaque n½ud conserve des informations locales sur la vitalité
+et le comportement de chaque autre n½ud avec lequel il a interagi.
+A chaque fois qu'un n½ud $v$ est échantillonné par $u$, ce dernier
+maintient un n-uplet (bit de réponse, horodatage). La première entrée
+est un bit unique qui représente si $v$ a répondu dans le délai d'expiration,
+et la seconde représente l'horodatage de la réponse. En d'autres termes,
+l\textquoteright émission dans \texttt{Avalanche} se fait via une
+preuve de disponibilité \textit{(proof-of-uptime)} et une preuve de
+réactivité \textit{(proof-of-responsiveness)}. Ce mécanisme a des
+conséquences importantes. En particulier, comme il n'y a pas de « leader »
+qui accumule des récompenses, il n'y a pas d'effets cumulatifs du
+genre « les riches deviennent plus riches ».
+
+\section{L\textquoteright économie transactionnelle }
+
+\subsection{Structure des frais}
+
+La structure des frais de la plateforme \texttt{Avalanche} comporte
+plusieurs caractéristiques de différenciation qui la distinguent des
+autres plateformes existantes et à venir.\\
+
+\textit{Frais de stake}. Contrairement à d'autres protocoles qui paient
+tous les frais au leader élu, comme dans Bitcoin, les frais d'\texttt{Avalanche}
+sont simplement brûlés. Par conséquent, le paiement est global et
+bénéficie à tout l'écosystème. La combustion des frais augmente la
+rareté des jetons dans le système. Le processus d\textquoteright émission
+des jetons compense la combustion des frais de transaction. Le système
+ne risque dès lors pas un arrêt total à long terme en raison de la
+destruction progressive des jetons.\\
+
+\textit{Coûts de transaction}. Dans \texttt{Avalanche}, les frais
+de transaction diffèrent selon le type de transaction. Les instanciations
+de nouveaux sous-réseaux entraînent les frais les plus élevés. Par
+contraste, d'autres types de transactions, comme de simples paiements
+d\textquoteright \texttt{\$AVAX}, sont peu coûteux. Pour d\textquoteright autres
+sous-réseaux, les transactions paient des frais dans le jeton natif
+du sous-réseau en question ainsi qu'un certain montant dans le jeton
+\texttt{\$AVAX}. Une transaction native d'un sous-réseau peut spécifier
+sa propre structure de frais de transaction, et c\textquoteright est
+au créateur du sous-réseau de choisir une structure de frais qui incite
+à la validation des sous-réseaux ouverts et sans permission.\\
+
+\textit{Fonction de coûts glissants}. Les frais de transaction ont
+une fonction de coûts glissants. Les frais ne sont pas fixés par l'émetteur
+de la transaction, mais plutôt par une fonction de frais vérifiable
+globalement. À mesure que la congestion du réseau augmente, les frais
+augmentent. À la fin d'une période de temps spécifique, la fonction
+est recalculée pour tenir compte des augmentations naturelles de volumes
+de transactions dans le réseau.\\
+
+\textit{Niveaux de transaction}. Contrairement à un modèle comme celui
+d'Ethereum, où chaque appel de transaction doit payer un certain montant,
+\texttt{Avalanche} adopte un modèle différent qui intègre deux types
+de mécanismes de traitement des transactions. Toutes les clés dont
+le solde de compte est positif pourront interagir immédiatement avec
+la plateforme, où les frais seront basés sur un mécanisme d'attribution,
+fonctionnellement similaire à un modèle de paiements échelonnés adopté
+dans les plateformes de \textit{cloud computing}. Chaque transaction
+comportera une adresse d'expéditeur (c'est-à-dire l'appelant), qui
+sera vérifiée pour l'attribution actuelle des appels. S'il reste des
+invocations gratuites à l'adresse, la transaction ne doit pas comporter
+de frais pour l'expéditeur. Au-delà d'un certain nombre d'appels,
+l'expéditeur devra joindre certains frais en fonction des ressources
+utilisées pour calculer la transaction. En outre, les utilisateurs
+peuvent choisir de payer leurs transactions par un calcul. À cette
+fin, les prochaines versions supporteront des transactions gratuites
+limitées en fréquence, qui ne nécessitent pas de frais en numéraire
+mais un calcul préliminaire. Chaque fois qu'une nouvelle transaction
+est générée, l'utilisateur calculera et joindra une preuve de travail
+valide à la transaction, qui pourra être vérifiée par toutes les parties.
+
+\subsection{Gestion du spam }
+
+Bien que les paiements simples entrainent des frais, la valeur en
+sera pratiquement nulle. Cependant, cela peut conduire à du spam sur
+le réseau. Dans les versions futures, pour éviter la congestion, chaque
+transaction comportera une preuve de travail \textit{(PoW)} locale.
+La preuve de travail est initialement de faible difficulté, permettant
+donc à une transaction d\textquoteright être émise immédiatement avec
+très peu de frais généraux. Cependant, si une clé spécifique génère
+un grand nombre de transactions dans un court laps de temps, chaque
+transaction ultérieure entraînera une plus grande difficulté dans
+le puzzle de sa preuve de travail. Ce mécanisme fonctionne en conjonction
+avec la combustion des frais.
+\begin{thebibliography}{1}
+\bibitem{key-1}AVA: Avalanche platform paper - architectural overview
+(2019), \\
+https://les.avalabs.org/papers/platform.pdf
+
+\bibitem{key-2}AVA: Avalanche platform documentation (2025), \\
+https://docs.avax.network
+\end{thebibliography}
+
+\end{document}
